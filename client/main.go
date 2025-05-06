@@ -14,8 +14,8 @@ func main() {
 	concurrency := flag.Int("c", 1000, "并发连接数")
 	duration := flag.Int("d", 10, "测试持续时间(秒)")
 	delay := flag.Int("delay", 100, "每个请求的延迟时间(毫秒)")
-	fiberPort := flag.Int("fiber-port", 8080, "Fiber服务端口")
-	hertzPort := flag.Int("hertz-port", 8081, "Hertz服务端口")
+	fiberPort := flag.Int("fiber-port", 443, "Fiber服务端口")
+	hertzPort := flag.Int("hertz-port", 443, "Hertz服务端口")
 	flag.Parse()
 
 	fmt.Println("性能测试客户端 - 远程模式")
