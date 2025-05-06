@@ -24,6 +24,7 @@ type BenchmarkResult struct {
 	TCPTimeWait        int64  // TIME_WAIT 状态的连接数
 	TCPCloseWait       int64  // CLOSE_WAIT 状态的连接数
 	MemoryUsage        uint64 // 内存使用量（字节）
+	MaxGoroutines      int64  // 最大 Goroutine 数量
 }
 
 // TCP连接状态统计
@@ -40,6 +41,9 @@ func RunBenchmark(url string, concurrency, durationSeconds int, delayMs int) {
 
 	var result BenchmarkResult
 	result.MinLatency = int64(^uint64(0) >> 1) // 初始化为最大int64值
+
+	// 初始化最大 Goroutine 数量
+	atomic.StoreInt64(&result.MaxGoroutines, int64(runtime.NumGoroutine()))
 
 	// 创建停止通道和等待组
 	stopCh := make(chan struct{})
@@ -143,19 +147,45 @@ func RunBenchmark(url string, concurrency, durationSeconds int, delayMs int) {
 				atomic.StoreInt64(&result.TCPTimeWait, tcpStats.TimeWait)
 				atomic.StoreInt64(&result.TCPCloseWait, tcpStats.CloseWait)
 
+				// 更新Goroutine最大数量
+				currentGoroutines := int64(runtime.NumGoroutine())
+				for {
+					maxGoroutines := atomic.LoadInt64(&result.MaxGoroutines)
+					if currentGoroutines <= maxGoroutines {
+						break
+					}
+					if atomic.CompareAndSwapInt64(&result.MaxGoroutines, maxGoroutines, currentGoroutines) {
+						break
+					}
+				}
+
 				// 实时打印状态
-				fmt.Printf("\r已处理: %d 请求, 成功率: %.2f%%, RPS: %.2f, TCP-ESTAB: %d, TCP-WAIT: %d     ",
+				fmt.Printf("\r已处理: %d 请求, 成功率: %.2f%%, RPS: %.2f, TCP-ESTAB: %d, TCP-WAIT: %d, Goroutines: %d     ",
 					atomic.LoadInt64(&result.TotalRequests),
 					float64(atomic.LoadInt64(&result.SuccessfulRequests))/float64(atomic.LoadInt64(&result.TotalRequests))*100,
 					float64(atomic.LoadInt64(&result.TotalRequests))/time.Since(startTime).Seconds(),
 					tcpStats.Established,
-					tcpStats.TimeWait)
+					tcpStats.TimeWait,
+					currentGoroutines)
 			}
 		}
 	}()
 
 	// 等待指定的测试时间
 	time.Sleep(time.Duration(durationSeconds) * time.Second)
+
+	// 在关闭通道前记录当前的goroutine数量
+	currentGoroutines := int64(runtime.NumGoroutine())
+	for {
+		maxGoroutines := atomic.LoadInt64(&result.MaxGoroutines)
+		if currentGoroutines <= maxGoroutines {
+			break
+		}
+		if atomic.CompareAndSwapInt64(&result.MaxGoroutines, maxGoroutines, currentGoroutines) {
+			break
+		}
+	}
+
 	close(stopCh)
 
 	// 等待所有工作协程完成
@@ -246,7 +276,8 @@ func printBenchmarkResults(result *BenchmarkResult, duration time.Duration) {
 	}
 
 	fmt.Printf("内存使用: %.2f MB\n", float64(result.MemoryUsage)/1024/1024)
-	fmt.Printf("Goroutine 数量: %d\n", runtime.NumGoroutine())
+	fmt.Printf("当前 Goroutine 数量: %d\n", runtime.NumGoroutine())
+	fmt.Printf("最大 Goroutine 数量: %d\n", result.MaxGoroutines)
 
 	fmt.Println("\nTCP连接状态:")
 	fmt.Printf("ESTABLISHED: %d\n", result.TCPEstablished)

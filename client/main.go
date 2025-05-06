@@ -9,7 +9,7 @@ import (
 
 func main() {
 	// 命令行参数
-	host := flag.String("host", "127.0.0.1", "服务器主机地址")
+	host := flag.String("host", "test1.opt360.net", "服务器主机地址")
 	framework := flag.String("framework", "both", "测试框架: fiber, hertz, 或 both")
 	concurrency := flag.Int("c", 1000, "并发连接数")
 	duration := flag.Int("d", 10, "测试持续时间(秒)")
@@ -24,12 +24,12 @@ func main() {
 	// 运行基准测试
 	if *framework == "fiber" || *framework == "both" {
 		fmt.Printf("\n===== 测试 Fiber 框架 (主机: %s, 端口: %d) =====\n", *host, *fiberPort)
-		benchmark.RunBenchmark(fmt.Sprintf("http://%s:%d/ad?id=ad1", *host, *fiberPort), *concurrency, *duration, *delay)
+		benchmark.RunBenchmark(fmt.Sprintf("https://%s:%d/ad?id=ad1", *host, *fiberPort), *concurrency, *duration, *delay)
 	}
 
 	if *framework == "hertz" || *framework == "both" {
-		fmt.Printf("\n===== 测试 Hertz 框架 (主机: %s, 端口: %d) =====\n", *host, *hertzPort)
-		benchmark.RunBenchmark(fmt.Sprintf("http://%s:%d/ad?id=ad1", *host, *hertzPort), *concurrency, *duration, *delay)
+		fmt.Printf("\n===== 测试 Hertz 框架 (主机: test2.opt360.net, 端口: %d) =====\n", *hertzPort)
+		benchmark.RunBenchmark(fmt.Sprintf("https://test2.opt360.net:%d/ad?id=ad1", *hertzPort), *concurrency, *duration, *delay)
 	}
 
 	fmt.Println("\n测试完成！")
