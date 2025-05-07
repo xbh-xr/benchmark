@@ -3,6 +3,7 @@ package fiberServer
 import (
 	"fmt"
 	"log"
+	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -14,8 +15,29 @@ import (
 // 简化的广告服务，使用原子计数器记录请求
 var fiberCounter int64
 
+// 定期触发GC
+func startGCController() {
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			runtime.GC()
+			debug := new(runtime.MemStats)
+			runtime.ReadMemStats(debug)
+			log.Printf("Fiber内存使用: 已分配: %.2f MB, 系统: %.2f MB, GC运行次数: %d\n",
+				float64(debug.Alloc)/1024/1024,
+				float64(debug.Sys)/1024/1024,
+				debug.NumGC)
+		}
+	}()
+}
+
 // StartFiberServer 启动Fiber服务器
 func StartFiberServer(port int) {
+	// 启动GC控制器
+	startGCController()
+
 	// 优化Fiber配置以处理高并发场景
 	app := fiber.New(fiber.Config{
 		Prefork:          false,
@@ -24,8 +46,8 @@ func StartFiberServer(port int) {
 		ReadTimeout:      60 * time.Second,
 		WriteTimeout:     60 * time.Second,
 		IdleTimeout:      180 * time.Second,
-		ReadBufferSize:   8192,       // 增加读缓冲区
-		WriteBufferSize:  8192,       // 增加写缓冲区
+		ReadBufferSize:   4096,       // 减小读缓冲区以节省内存
+		WriteBufferSize:  4096,       // 减小写缓冲区以节省内存
 		Concurrency:      256 * 1024, // 最大并发连接数
 		DisableKeepalive: false,      // 启用keepalive
 		// 配置底层FastHTTP客户端
@@ -105,8 +127,8 @@ func StartFiberServer(port int) {
 		TCPKeepalive:                  true,
 		TCPKeepalivePeriod:            30 * time.Second,
 		Concurrency:                   256 * 1024,
-		ReadBufferSize:                8192,
-		WriteBufferSize:               8192,
+		ReadBufferSize:                4096,
+		WriteBufferSize:               4096,
 		GetOnly:                       false,
 		ReduceMemoryUsage:             true,
 		CloseOnShutdown:               true,
@@ -118,7 +140,15 @@ func StartFiberServer(port int) {
 	log.Printf("Fiber服务器配置: 最大并发: %d, 读超时: %v, 写超时: %v\n",
 		server.Concurrency, server.ReadTimeout, server.WriteTimeout)
 
-	if err := server.ListenAndServe(address); err != nil {
+	// 发起手动GC
+	runtime.GC()
+
+	err := app.Listen(address)
+	if err != nil {
 		log.Fatalf("Fiber服务器启动失败: %v", err)
 	}
+
+	/*if err := server.ListenAndServe(address); err != nil {
+		log.Fatalf("Fiber服务器启动失败: %v", err)
+	}*/
 }
